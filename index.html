@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Professional Web Editor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.0/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.0/theme/material-ocean.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1e1e2e;
+            --secondary: #292d3e;
+            --accent: #4CAF50;
+            --toolbar: #2a2f45;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: manipulation;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--primary);
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panes-container {
+            display: flex;
+            flex: 1;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .preview-pane, .editor-pane {
+            background: var(--secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 300px;
+        }
+
+        .toolbar {
+            padding: 10px 15px;
+            background: var(--toolbar);
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .tool-btn {
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .tool-btn:hover {
+            background: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .floating-tools {
+            position: absolute;
+            top: 50px;
+            right: 15px;
+            background: var(--toolbar);
+            border-radius: 8px;
+            padding: 10px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            z-index: 1000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: none;
+        }
+
+        .tool-item {
+            padding: 10px;
+            background: var(--secondary);
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tool-item:hover {
+            background: var(--accent);
+        }
+
+        .CodeMirror {
+            flex: 1;
+            height: auto !important;
+            font-family: 'Fira Code', monospace;
+            font-size: 14px;
+        }
+
+        #preview {
+            flex: 1;
+            border: none;
+            background: white;
+            overflow: auto !important;
+        }
+
+        @media (max-width: 768px) {
+            .panes-container {
+                flex-direction: column;
+                padding: 8px;
+            }
+            .floating-tools {
+                grid-template-columns: repeat(2, 1fr);
+                right: 8px;
+                top: 45px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="panes-container">
+        <div class="preview-pane">
+            <div class="toolbar">
+                <button class="tool-btn" id="editModeBtn">
+                    <i class="fas fa-edit"></i> Edit Mode
+                </button>
+                <button class="tool-btn" id="toolsBtn">
+                    <i class="fas fa-code"></i> Tools
+                </button>
+                <button class="tool-btn" id="clearBtn">
+                    <i class="fas fa-trash"></i> Clear
+                </button>
+            </div>
+            
+            <div class="floating-tools" id="toolsPanel">
+                <div class="tool-item" data-command="bold">
+                    <i class="fas fa-bold"></i> Bold
+                </div>
+                <div class="tool-item" data-command="italic">
+                    <i class="fas fa-italic"></i> Italic
+                </div>
+                <div class="tool-item" data-command="image">
+                    <i class="fas fa-image"></i> Image
+                </div>
+                <div class="tool-item" data-command="video">
+                    <i class="fas fa-video"></i> Video
+                </div>
+                <div class="tool-item" data-command="link">
+                    <i class="fas fa-link"></i> Link
+                </div>
+                <div class="tool-item" data-command="html">
+                    <i class="fas fa-file-code"></i> HTML Code
+                </div>
+            </div>
+
+            <iframe id="preview" srcdoc="<!DOCTYPE html><html><head><style>body{padding:20px}</style></head><body><h1 style='color:#333'>Start Editing</h1></body></html>"></iframe>
+        </div>
+
+        <div class="editor-pane">
+            <div class="toolbar">
+                <button class="tool-btn" id="copyBtn">
+                    <i class="fas fa-copy"></i> Copy Code
+                </button>
+            </div>
+            <textarea id="codeEditor"></textarea>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.0/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.0/mode/htmlmixed/htmlmixed.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.0/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.0/mode/javascript/javascript.min.js"></script>
+    <script>
+    const editor = CodeMirror.fromTextArea(document.getElementById('codeEditor'), {
+        mode: "htmlmixed",
+        theme: "material-ocean",
+        lineNumbers: true,
+        autoCloseTags: true,
+        value: '<!DOCTYPE html>\n<html>\n<head>\n\t<title>My Project</title>\n</head>\n<body>\n\t<h1>Edit Content</h1>\n</body>\n</html>'
+    });
+
+    document.getElementById('toolsBtn').addEventListener('click', () => {
+        const panel = document.getElementById('toolsPanel');
+        panel.style.display = panel.style.display === 'none' ? 'grid' : 'none';
+    });
+
+    document.querySelectorAll('.tool-item').forEach(item => {
+        item.addEventListener('click', e => {
+            const cmd = e.currentTarget.dataset.command;
+            handleCommand(cmd);
+        });
+    });
+
+    function handleCommand(cmd) {
+        const previewDoc = document.getElementById('preview').contentDocument;
+        
+        switch(cmd) {
+            case 'html':
+                const title = prompt("Enter code title:");
+                const code = prompt("Paste HTML code:");
+                if(title && code) {
+                    insertHTML(`<!-- ${title} -->\n${code}\n<!-- /${title} -->`);
+                }
+                break;
+                
+            case 'bold':
+                previewDoc.execCommand('bold');
+                break;
+                
+            case 'italic':
+                previewDoc.execCommand('italic');
+                break;
+                
+            case 'image':
+                const imgUrl = prompt("Enter image URL:");
+                if(imgUrl) insertHTML(`<img src="${imgUrl}" style="max-width:100%">`);
+                break;
+                
+            case 'video':
+                const videoUrl = prompt("Enter video URL:");
+                if(videoUrl) insertHTML(`<iframe src="${videoUrl}" style="width:100%;height:300px"></iframe>`);
+                break;
+                
+            case 'link':
+                const text = prompt("Link text:");
+                const url = prompt("Link URL:");
+                if(text && url) insertHTML(`<a href="${url}" target="_blank">${text}</a>`);
+                break;
+        }
+        updateEditor();
+    }
+
+    function insertHTML(html) {
+        const previewDoc = document.getElementById('preview').contentDocument;
+        const sel = previewDoc.getSelection();
+        if(sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(range.createContextualFragment(html));
+        } else {
+            previewDoc.body.insertAdjacentHTML('beforeend', html);
+        }
+    }
+
+    function updateEditor() {
+        const previewDoc = document.getElementById('preview').contentDocument;
+        editor.setValue(new XMLSerializer().serializeToString(previewDoc.documentElement));
+    }
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+        document.getElementById('preview').srcdoc = '<!DOCTYPE html><html><body style="padding:20px"><h1>Content Cleared</h1></body></html>';
+        editor.setValue('<!DOCTYPE html>\n<html>\n<head>\n\t<title>New Project</title>\n</head>\n<body>\n\n</body>\n</html>');
+    });
+
+    document.getElementById('copyBtn').addEventListener('click', () => {
+        navigator.clipboard.writeText(editor.getValue());
+    });
+
+    editor.on("change", () => {
+        const preview = document.getElementById('preview').contentDocument;
+        preview.open();
+        preview.write(editor.getValue());
+        preview.close();
+    });
+    </script>
+</body>
+</html>
